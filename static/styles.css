@@ -1,0 +1,660 @@
+html, body {
+    height: 100%;
+    margin: 0;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    box-sizing: border-box;
+    background-color: #0a0a0a;
+    color: #00ff99;
+    font-family: 'Orbitron', sans-serif;
+    transition: all 0.5s ease-in-out;
+    overflow-x: hidden;
+    overflow-y: auto; /* Allow body to scroll if content overflows */
+}
+
+.app-header {
+    text-align: left;
+    padding-bottom: 20px;
+    flex-shrink: 0; /* Prevent header from shrinking */
+    position: relative; /* Needed for positioning the logout button */
+}
+
+.app-header h1 {
+    color: #ff7f00;
+    text-transform: uppercase;
+    letter-spacing: 1.5px; /* Reduced spacing */
+    font-size: 1.5em; /* Further reduced size */
+    text-shadow: 0 0 6px rgba(255, 127, 0, 0.6), 0 0 3px rgba(255, 127, 0, 0.4); /* Softened glow */
+    margin: 0;
+}
+
+/* Responsive, Flexbox-based Layout */
+.main-container {
+    display: flex;
+    flex-direction: column; /* Mobile-first: stacked layout */
+    gap: 20px;
+    width: 100%;
+    align-items: center; /* Center items on mobile */
+    flex-grow: 1; /* Allow container to fill remaining vertical space */
+    min-height: 0; /* Important for flex-grow to work correctly */
+}
+
+/* Control Groups */
+.control-group {
+    background-color: #111111;
+    border: 1px solid #ff7f00;
+    border-radius: 5px;
+    padding: 10px; /* Uniform padding now */
+    margin: 0 auto;
+    box-shadow: 0 0 8px rgba(255, 127, 0, 0.3), 0 0 4px rgba(255, 127, 0, 0.2) inset;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    height: 100%; /* This is the key fix: make it take the full parent height */
+    width: 100%;
+    max-width: 800px;
+    transition: all 0.5s ease-in-out;
+}
+
+/* Logout Button Style */
+.logout-button {
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    color: #ff7f00;
+    text-decoration: none;
+    font-size: 0.9em;
+    border: 1px solid #ff7f00;
+    padding: 5px 10px;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+.logout-button:hover {
+    background-color: #ff7f00;
+    color: #0a0a0a;
+    box-shadow: 0 0 10px rgba(255, 127, 0, 0.7);
+}
+
+
+.collapsible-content {
+    display: flex;
+    flex-direction: column;
+    gap: 15px; /* Space between question/answer pairs */
+    flex-grow: 1;
+    box-sizing: border-box;
+    min-height: 0; /* This is critical for allowing the child container to scroll */
+    overflow-y: auto; /* This becomes the primary scrolling container */
+    padding: 10px; /* Some padding for the content inside */
+    /* Removed border and negative margin as separator is gone */
+}
+
+/* Compact API Settings Group */
+#apiSettingsGroup {
+    padding: 12px; /* Further reduced */
+    margin-bottom: 15px; 
+}
+
+#apiSettingsGroup h3 {
+    font-size: 1.1em; /* Further reduced */
+    margin-top: 0; 
+    margin-bottom: 12px;
+    padding-bottom: 4px;
+}
+
+#apiSettingsGroup label {
+    font-size: 0.8em; /* Further reduced */
+    margin-bottom: 4px;
+}
+
+#apiSettingsGroup select,
+#apiSettingsGroup button {
+    padding: 7px 9px; 
+    font-size: 0.85em; 
+    margin-bottom: 8px;
+}
+
+#apiSettingsGroup #apiConnectionStatus {
+    font-size: 0.75em; 
+    margin-top: 4px;
+}
+
+/* Labels */
+label {
+    display: block;
+    color: #E8772E; /* Dark Orange/Amber for labels */
+    margin-bottom: 4px; /* Reverted from 2px */
+    font-weight: normal;
+    text-transform: uppercase;
+    font-size: 0.85em; /* Reverted from 0.8em */
+    letter-spacing: 0.8px; /* Reverted from 0.7px */
+    text-shadow: 0 0 2px rgba(232, 119, 46, 0.5); /* Subtle orange glow */
+}
+
+/* Input Fields: select, textarea */
+select,
+textarea,
+input[type=\"file\"] {
+    width: 100%;
+    padding: 8px; /* Reverted from 6px */
+    margin-bottom: 8px; /* Reverted from 6px */
+    background-color: #000000; /* Black background for inputs */
+    color: #ff7f00; /* Orange text in inputs */
+    border: 1px solid #007bff; /* Blue border */
+    border-radius: 3px; /* Smaller radius */
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.95em; /* Reverted from 0.9em */
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+select {
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23ff7f00%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center; /* Adjusted */
+    background-size: 9px; /* Smaller arrow */
+    padding-right: 28px; /* Adjusted */
+}
+
+textarea {
+    resize: vertical;
+    min-height: 65px; /* Reverted from 50px */
+}
+
+#generatedOutput {
+    background-color: #000000; /* Black output area */
+    color: #00ccff; /* Cyan for output text */
+    font-family: 'Courier New', Courier, monospace;
+    cursor: default;
+    min-height: 80px; /* Reduced */
+    border: 1px solid #007bff; /* Match input border */
+}
+
+/* Focus state for inputs */
+select:focus,
+textarea:focus,
+input[type=\"file\"]:focus {
+    outline: none;
+    border-color: #ff7f00; /* Orange border on focus */
+    box-shadow: 0 0 8px rgba(255, 127, 0, 0.7), 0 0 4px rgba(255, 127, 0, 0.5) inset; /* Stronger orange glow */
+}
+
+/* Buttons */
+button {
+    width: 100%;
+    padding: 8px 10px; /* Reverted from 6px 8px */
+    border: 1px solid #000000;
+    border-radius: 4px; /* Reverted from 3px */
+    cursor: pointer;
+    font-family: 'Orbitron', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 1px; /* Reverted from 0.8px */
+    font-size: 0.9em; /* Reverted from 0.85em */
+    transition: all 0.2s ease;
+    margin-bottom: 8px; /* Reverted from 6px */
+    box-shadow: 0 0 2px rgba(0,0,0,0.5) inset, 0 1px 2px rgba(0,0,0,0.3); 
+    text-shadow: 0 1px 1px rgba(0,0,0,0.6);
+}
+
+/* Specific Button Styles */
+#connectApiButton,
+#generateContentButton,
+#startNewChatButton,
+#sendChatMessageButton {
+    background-color: #D5803C; /* Dark Orange/Amber */
+    color: #ffffff; /* White text for contrast */
+    border-color: #A05B22; /* Darker Orange/Amber border */
+    text-shadow: none; /* Ensure no conflicting text shadow */
+    margin-bottom: 8px; /* Reverted from 6px */
+}
+
+#connectApiButton:hover,
+#generateContentButton:hover,
+#startNewChatButton:hover,
+#sendChatMessageButton:hover {
+    background-color: #F0904D; /* Lighter Orange/Amber on hover */
+    color: #ffffff;
+    border-color: #D5803C;
+    box-shadow: 0 0 7px rgba(213, 128, 60, 0.7), 0 0 10px rgba(240, 144, 77, 0.5); /* Orange glow */
+}
+
+/* New Appliance Button Styles */
+.appliance-button {
+    background-color: #1a1a1a;
+    color: #ff7f00;
+    border: 1px solid #ff7f00;
+    padding: 12px 15px;
+    font-size: 1.1em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+    width: 100%;
+}
+
+.appliance-button:hover {
+    background-color: #ff7f00;
+    color: #0a0a0a;
+    box-shadow: 0 0 15px rgba(255, 127, 0, 0.8);
+}
+
+#startOverButton {
+    background-color: #333;
+    color: #ccc;
+    border-color: #444;
+    margin-top: 10px;
+}
+
+#startOverButton:hover {
+    background-color: #444;
+    color: #fff;
+    border-color: #555;
+}
+
+
+/* Keep disabled state distinct */
+#sendChatMessageButton:disabled {
+    background-color: #222;
+    color: #555;
+    border-color: #111;
+    cursor: not-allowed;
+    box-shadow: none;
+    text-shadow: none;
+}
+
+/* Paragraphs for Status Messages */
+#apiConnectionStatus,
+#generationStatus,
+#chatSessionStatus,
+#chatGenerationStatus {
+    font-size: 0.8em; /* Reverted from 0.75em */
+    margin-top: 6px; /* Reverted from 4px */
+    margin-bottom: 8px; /* Reverted from 6px */
+    text-align: center;
+    color: #E8772E; /* Dark Orange/Amber status messages */
+    font-family: 'Courier New', Courier, monospace;
+    text-shadow: 0 0 2px rgba(232, 119, 46, 0.6); /* Subtle orange glow */
+}
+
+/* Chat History */
+#chatHistory {
+    flex-grow: 1; /* Allow chat history to take available vertical space */
+    display: flex;
+    flex-direction: column;
+    gap: 15px; /* Space between question/answer pairs */
+    padding: 0; /* Remove padding, it's on the parent now */
+    /* Visual styles like border, background are removed from here */
+}
+
+/* Removing previous chat message styling */
+.chat-message, .chat-message-user, .chat-message-model {
+    all: unset;
+}
+
+/* New sequential chat styling */
+.chat-pair-container {
+    padding: 10px;
+    border: 1px solid #333;
+    border-radius: 4px;
+    background-color: #1a1a1a;
+}
+
+.model-question {
+    color: #E8772E;
+    font-family: 'Orbitron', sans-serif;
+    line-height: 1.5;
+    margin-bottom: 10px;
+}
+
+/* Highlight style for summary text */
+.model-question strong {
+    color: #ff9933; /* A brighter orange */
+    font-weight: bold;
+    text-shadow: 0 0 6px rgba(255, 153, 51, 0.7), 0 0 2px rgba(255, 153, 51, 0.5);
+}
+
+.warning-text {
+    color: #ff4d4d; /* Bright red for warnings */
+    font-weight: bold;
+    text-shadow: 0 0 8px rgba(255, 77, 77, 0.8);
+}
+
+.part-number {
+    color: #a6ff00; /* Bright lime green */
+    font-weight: bold;
+    text-shadow: 0 0 8px rgba(166, 255, 0, 0.7), 0 0 4px rgba(166, 255, 0, 0.5);
+    background-color: rgba(166, 255, 0, 0.1);
+    padding: 1px 3px;
+    border-radius: 3px;
+}
+
+.user-answer {
+    color: #00ccff;
+    font-family: 'Courier New', Courier, monospace;
+    font-style: italic;
+    padding-left: 20px;
+    
+    position: relative; /* For checkmark */
+    font-weight: bold;
+    text-shadow: 0 0 5px rgba(0, 255, 153, 0.7);
+}
+
+.user-answer::after {
+    content: '✓';
+    position: absolute;
+    left: -10px;
+    top: 2px;
+    color: #00ff99;
+    font-size: 1.2em;
+    font-weight: bold;
+    text-shadow: 0 0 5px rgba(0, 255, 153, 0.7);
+}
+
+/* Loading Indicator */
+.loading-indicator {
+    display: none; /* Hidden by default */
+    align-self: center; /* Center in the flex container */
+    margin: 15px;
+    width: 40px;
+    height: 40px;
+    border: 4px solid #444;
+    border-top-color: #ff7f00;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Scrollbar styling (WebKit browsers - Chrome, Safari, newer Edge) */
+::-webkit-scrollbar {
+    width: 9px; /* Slightly thinner */
+}
+
+::-webkit-scrollbar-track {
+    background: #0a0a0a; 
+}
+
+::-webkit-scrollbar-thumb {
+    background: #ff7f00; /* Orange scrollbar thumb */
+    border-radius: 4px; /* Adjusted */
+    border: 1px solid #0a0a0a;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #ffa500; /* Lighter orange on hover */
+}
+
+/* Mermaid and Diagram Styling */
+#diagramContainer {
+    margin-top: 0;
+    background-color: #111111;
+    border: 1px solid #ff7f00;
+    border-radius: 5px;
+    padding: 15px;
+    box-shadow: 0 0 8px rgba(255, 127, 0, 0.3);
+    display: none; /* Hidden by default */
+    flex-direction: column;
+    height: 70vh;
+    width: 100%;
+    max-width: 800px;
+    /* Remove absolute positioning and opacity transitions for this approach */
+}
+
+.layout-shifted #diagramContainer {
+    display: flex; /* Show it when the class is added */
+    height: 100%;
+}
+
+.mermaid-container {
+    background-color: #050505;
+    border: 1px solid #ff7f00;
+    border-radius: 5px;
+    padding: 15px;
+    margin-top: 10px; /* Space below the diagram title */
+    width: 95%;
+    box-shadow: 0 0 8px rgba(255, 127, 0, 0.3);
+    overflow: auto; /* Allow scrolling within the container for both X and Y */
+    flex-grow: 1;
+    min-height: 0;
+    margin-bottom: 5px;
+}
+
+.mermaid-container svg {
+    display: block;
+    margin: auto;
+    max-width: 100%;
+    height: auto; /* Maintain aspect ratio */
+    color: #E8772E; /* Dark Orange/Amber status messages */
+    font-family: 'Courier New', Courier, monospace;
+    text-shadow: 0 0 2px rgba(232, 119, 46, 0.6); /* Subtle orange glow */
+}
+
+/* New Input Area styling */
+.input-area {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 15px;
+    padding-top: 10px;
+    border-top: 1px solid #ff7f00;
+}
+
+.input-area textarea {
+    min-height: 50px;
+}
+
+.input-area label {
+    font-size: 0.8em;
+    text-transform: none;
+    letter-spacing: 0.5px;
+}
+
+.input-area input[type=\"file\"] {
+    padding: 5px;
+}
+
+#generatedOutput {
+    background-color: #000000; /* Black output area */
+    color: #00ccff; /* Cyan for output text */
+    font-family: 'Courier New', Courier, monospace;
+    cursor: default;
+    min-height: 80px; /* Reduced */
+    border: 1px solid #007bff; /* Match input border */
+}
+
+#chatGenerationStatus {
+    font-size: 0.8em; /* Reverted from 0.75em */
+    margin-top: 6px; /* Reverted from 4px */
+    margin-bottom: 8px; /* Reverted from 6px */
+    text-align: center;
+    color: #E8772E; /* Dark Orange/Amber status messages */
+    font-family: 'Courier New', Courier, monospace;
+    text-shadow: 0 0 2px rgba(232, 119, 46, 0.6); /* Subtle orange glow */
+    min-height: 1.2em; /* Reserve space to prevent layout shift */
+}
+
+/* Remove old diagnostic styling */
+.diagnostic-container,
+.diagnostic-step,
+.diagnostic-step.unanswered,
+.diagnostic-step.answered,
+.diagnostic-step::before,
+.diagnostic-step.unanswered::before,
+.diagnostic-step.answered::before,
+.assistant-question,
+.technician-answer {
+    all: unset;
+}
+
+/* Media Query for larger screens (tablets and desktops) */
+@media (min-width: 1024px) {
+    .main-container {
+        flex-direction: row; /* Side-by-side layout */
+        align-items: stretch; /* Make children fill height */
+        justify-content: center; /* Center single chat box initially */
+    }
+
+    .control-group {
+        flex: 2 1 600px; /* Flex-grow: 2, Flex-shrink: 1, Flex-basis: 600px */
+        max-width: 1000px; /* Still useful for initial centered state */
+    }
+
+    .collapsible-content {
+        padding: 15px; /* Restore slightly larger padding for desktop */
+    }
+
+    /* When shifted, chat box gives space to diagram */
+    .layout-shifted .control-group {
+        flex-grow: 1;
+        max-width: none; /* Let flexbox handle the width */
+    }
+
+    #diagramContainer {
+        display: none; /* Still hidden by default on desktop */
+        flex: 1.5 1 500px; /* Flex-grow: 1.5, Flex-shrink: 1, Flex-basis: 500px */
+        opacity: 0; /* Use opacity for fade-in on desktop */
+        transition: opacity 0.8s ease-in-out;
+        max-width: 700px;
+    }
+
+    /* On desktop, we fade it in instead of just appearing */
+    .layout-shifted #diagramContainer {
+        display: flex;
+        opacity: 1;
+    }
+}
+
+/* New container for the two selection groups */
+.selection-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+    align-items: center;
+}
+
+/* Past Jobs List Styling */
+#pastJobsList {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-height: 400px; /* Give it a max height */
+    overflow-y: auto; /* And allow scrolling */
+}
+
+.past-job-item {
+    display: flex; /* Use flexbox for alignment */
+    justify-content: space-between; /* Pushes content and button apart */
+    align-items: center; /* Vertically centers them */
+    background-color: #1a1a1a;
+    border: 1px solid #444; /* Subtler border */
+    padding: 12px 15px;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+    gap: 15px; /* Add space between content and button */
+}
+
+.job-item-content {
+    flex-grow: 1; /* Allows content to take up available space */
+    cursor: pointer;
+}
+
+.past-job-item:hover {
+    background-color: #2a2a2a;
+    border-color: #ff7f00; /* Highlight on hover */
+    transform: none; /* Removed the lift effect for a flatter design */
+    box-shadow: 0 0 8px rgba(255, 127, 0, 0.2);
+}
+
+.job-item-appliance {
+    font-weight: bold;
+    color: #ff9933;
+    font-size: 1.1em;
+    margin-bottom: 5px;
+}
+
+.job-item-date {
+    font-size: 0.8em;
+    color: #ccc;
+    margin-bottom: 10px;
+}
+
+.job-item-preview {
+    font-size: 0.9em;
+    color: #00ccff;
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.delete-session-btn {
+    background: transparent;
+    border: 1px solid #666; /* Slightly darker border */
+    color: #888; /* Slightly lighter text */
+    border-radius: 50%; /* Make it a circle */
+    cursor: pointer;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+    
+    /* Sizing and Centering */
+    width: 24px;
+    height: 24px;
+    font-size: 1.1em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1; /* Explicitly set for centering */
+}
+
+.delete-session-btn:hover {
+    background-color: #dc3545; /* Red on hover */
+    color: #fff;
+    border-color: #dc3545;
+    box-shadow: 0 0 8px rgba(220, 53, 69, 0.7);
+}
+
+
+/* Alert styles for flashed messages */
+.alert {
+    padding: 15px;
+    margin-bottom: 20px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: #ffffff;
+    text-align: center;
+}
+
+.alert-success {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+
+.alert-danger {
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+
+.alert-warning {
+    background-color: #ffc107;
+    border-color: #ffc107;
+    color: #000;
+}
+
+.alert-info {
+    background-color: #17a2b8;
+    border-color: #17a2b8;
+}
+

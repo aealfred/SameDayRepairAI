@@ -1,0 +1,478 @@
+{% extends "base.html" %}
+{% block title %}Diagnostic Chat - Same-Day-Repair AI{% endblock %}
+
+{% block content %}
+    <div class="main-container" id="mainAppContainer">
+        <!-- Container for Past Sessions and Appliance Selection -->
+        <div class="selection-container">
+            <!-- New Appliance Selection Menu -->
+            <div class="control-group" id="applianceSelector">
+                <div class="collapsible-content open">
+                    <h3>Start a New Diagnosis</h3>
+                    <button class="appliance-button" onclick="startDiagnosis('washer')">Washer</button>
+                    <button class="appliance-button" onclick="startDiagnosis('dryer')">Dryer</button>
+                    <button class="appliance-button" onclick="startDiagnosis('refrigerator')">Refrigerator</button>
+                </div>
+            </div>
+
+            <!-- New container for past jobs -->
+            <div class="control-group" id="pastJobsContainer">
+                 <div class="collapsible-content open">
+                    <h3>Continue a Past Job</h3>
+                    <div id="pastJobsList">
+                        <!-- Past jobs will be loaded here by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- This group is hidden initially and shown when a job is active -->
+        <div class="control-group" id="chatConversationGroup" style="display: none;">
+            <div class="collapsible-content open">
+                <p id="chatSessionStatus"
+                    style="font-size: 11px; margin-top: -5px; margin-bottom:10px; text-align: center;"></p>
+
+                <div id="chatHistory">
+                    <!-- Chat messages will appear here -->
+                    <div class="loading-indicator" style="display: none;"></div>
+                </div>
+
+                <div class="input-area">
+                    <label for="chatPromptInput">Technician Input:</label>
+                    <textarea id="chatPromptInput" name="chatPromptInput" rows="2"
+                        placeholder="Provide requested information..."></textarea>
+
+                    <label for="mediaFileInput">Attach File (optional):</label>
+                    <input type="file" id="mediaFileInput" name="mediaFile" accept="image/*,video/*">
+
+                    <button id="sendChatMessageButton" onclick="sendChatMessage()" disabled>
+                        Submit
+                    </button>
+                    <button id="startOverButton" onclick="startNewChat()">Start Over</button>
+                </div>
+                <p id="chatGenerationStatus" style="font-size: 11px; margin-top: 8px; text-align: center;"></p>
+            </div>
+        </div>
+
+        <!-- New container for the Mermaid diagram, initially hidden -->
+        <div id="diagramContainer">
+            <div class="mermaid-container" id="mermaidDiagram">
+                 <!-- Mermaid diagram will be rendered here -->
+            </div>
+        </div>
+    </div>
+
+    {# Add a logout button to the header #}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const header = document.querySelector('.app-header');
+            if (header) {
+                const logoutButton = document.createElement('a');
+                logoutButton.href = "{{ url_for('logout') }}";
+                logoutButton.innerText = 'Logout';
+                logoutButton.className = 'logout-button';
+                header.appendChild(logoutButton);
+            }
+            // Load past sessions when the page is ready
+            loadPastSessions();
+        });
+    </script>
+    
+    <script>
+      mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+
+      window.geminiAPIClient = {
+          isConnecting: false,
+          chatSessionId: null
+      };
+
+      async function loadPastSessions() {
+        const pastJobsList = document.getElementById('pastJobsList');
+        pastJobsList.innerHTML = '<p>Loading past jobs...</p>';
+
+        try {
+            const response = await fetch('/api/past_sessions');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const sessions = await response.json();
+
+            if (sessions.length === 0) {
+                pastJobsList.innerHTML = '<p>No past jobs found.</p>';
+                return;
+            }
+
+            pastJobsList.innerHTML = ''; // Clear loading message
+            sessions.forEach(session => {
+                const sessionDiv = document.createElement('div');
+                sessionDiv.className = 'past-job-item';
+                sessionDiv.id = `session-${session.session_id}`; // Add an ID for easy removal
+
+                // Main content part, clickable to load history
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'job-item-content';
+                contentDiv.innerHTML = `
+                    <div class="job-item-appliance">${session.appliance_type}</div>
+                    <div class="job-item-date">${session.start_time}</div>
+                    <div class="job-item-preview">${session.history_preview}</div>
+                `;
+                contentDiv.onclick = () => loadSessionHistory(session.session_id);
+                
+                // Delete button part
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'delete-session-btn';
+                deleteButton.innerText = '×'; // A simple 'X' for delete
+                deleteButton.onclick = (e) => {
+                    e.stopPropagation(); // Prevent the click from loading the session
+                    deleteSession(session.session_id);
+                };
+
+                sessionDiv.appendChild(contentDiv);
+                sessionDiv.appendChild(deleteButton);
+                pastJobsList.appendChild(sessionDiv);
+            });
+
+        } catch (error) {
+            console.error('Error fetching past sessions:', error);
+            pastJobsList.innerHTML = '<p style="color:red;">Could not load past jobs.</p>';
+        }
+      }
+
+      async function deleteSession(sessionId) {
+        if (!confirm('Are you sure you want to permanently delete this job history?')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/delete_session/${sessionId}`, {
+                method: 'DELETE',
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.error || 'Failed to delete session.');
+            }
+
+            // Remove the element from the UI
+            const elementToRemove = document.getElementById(`session-${sessionId}`);
+            if (elementToRemove) {
+                elementToRemove.style.transition = 'opacity 0.5s ease';
+                elementToRemove.style.opacity = '0';
+                setTimeout(() => elementToRemove.remove(), 500);
+            }
+
+        } catch (error) {
+            console.error('Error deleting session:', error);
+            alert(`Error: ${error.message}`); // Show error to the user
+        }
+      }
+
+      async function loadSessionHistory(sessionId) {
+        // 1. Update UI
+        document.querySelector('.selection-container').style.display = 'none';
+        const chatGroup = document.getElementById('chatConversationGroup');
+        chatGroup.style.display = 'flex';
+        const chatHistoryElement = document.getElementById('chatHistory');
+        chatHistoryElement.innerHTML = '<div class="loading-indicator" style="display: block;"></div>';
+        const chatStatusElement = document.getElementById('chatSessionStatus');
+        const sendButton = document.getElementById('sendChatMessageButton');
+
+        try {
+            // 2. Fetch history from the new endpoint
+            const response = await fetch(`/api/chat_history/${sessionId}`);
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+            }
+            const sessionData = await response.json();
+
+            // 3. Set the session ID and update status
+            window.geminiAPIClient.chatSessionId = sessionData.session_id;
+            chatStatusElement.textContent = `Session Active: ${sessionData.session_id.substring(0, 8)}...`;
+            chatStatusElement.style.color = 'lime';
+
+            // 4. Populate the chat history
+            chatHistoryElement.innerHTML = '<div class="loading-indicator" style="display: none;"></div>'; // Hide loader
+            
+            // Render history sequentially
+            sessionData.history.forEach(message => {
+                const text = message.parts.map(p => (p.text || '')).join('\n');
+                if (message.role === 'user') {
+                    // Find the last chat pair to append the answer to
+                    const lastPair = chatHistoryElement.querySelector('.chat-pair-container:last-child');
+                    if (lastPair && !lastPair.querySelector('.user-answer')) {
+                         const answerDiv = document.createElement('div');
+                         answerDiv.className = 'user-answer';
+                         answerDiv.textContent = text;
+                         lastPair.appendChild(answerDiv);
+                    } else {
+                        // This case is for a user message that doesn't follow a model question,
+                        // which can happen at the start of a loaded history.
+                        appendAnswerToHistory(text); 
+                    }
+                } else if (message.role === 'model') {
+                    // Each model message starts a new "pair"
+                    appendQuestionToHistory(text);
+                }
+            });
+            
+            // Re-enable input
+            sendButton.disabled = false;
+            document.getElementById('chatGenerationStatus').textContent = 'Session loaded. Ready for input.';
+            document.getElementById('chatGenerationStatus').style.color = 'lime';
+
+        } catch (error) {
+            console.error('Error loading session history:', error);
+            chatHistoryElement.innerHTML = '';
+            chatStatusElement.textContent = `Error: ${error.message}`;
+            chatStatusElement.style.color = 'red';
+            sendButton.disabled = true;
+        }
+      }
+
+      async function startDiagnosis(applianceType) {
+        // 1. Update UI to hide selection and show chat
+        document.querySelector('.selection-container').style.display = 'none';
+        document.getElementById('chatConversationGroup').style.display = 'flex';
+        
+        const chatStatusElement = document.getElementById('chatSessionStatus');
+        const chatHistoryElement = document.getElementById('chatHistory');
+        const sendButton = document.getElementById('sendChatMessageButton');
+
+        // From original startNewChat logic
+        chatStatusElement.textContent = 'Starting new session...';
+        chatStatusElement.style.color = '#ffa500';
+        chatHistoryElement.innerHTML = '<div class="loading-indicator" style="display: none;"></div>';
+
+        try {
+            // 2. Start a new session via the API
+            const response = await fetch('/api/new_chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ appliance_type: applianceType })
+            });
+            const data = await response.json();
+
+            if (response.ok && data.session_id) {
+                window.geminiAPIClient.chatSessionId = data.session_id;
+                chatStatusElement.textContent = `Session Active: ${data.session_id.substring(0, 8)}...`;
+                chatStatusElement.style.color = 'lime';
+                sendButton.disabled = false;
+                
+                // 3. Automatically send the first message
+                const initialPrompt = `I need help with my ${applianceType}.`;
+                await sendFirstMessage(initialPrompt);
+
+            } else {
+                const errorMsg = data.error || 'Failed to start chat session.';
+                chatStatusElement.textContent = `Error: ${errorMsg}`;
+                chatStatusElement.style.color = 'red';
+                sendButton.disabled = true;
+            }
+        } catch (error) {
+            console.error("Start Diagnosis Fetch Error:", error);
+            chatStatusElement.textContent = 'Error: Network or server error.';
+            chatStatusElement.style.color = 'red';
+            sendButton.disabled = true;
+        }
+      }
+
+      async function sendFirstMessage(messageText) {
+        if (!window.geminiAPIClient.chatSessionId) return;
+
+        const chatStatus = document.getElementById('chatGenerationStatus');
+        chatStatus.textContent = 'Processing...';
+        chatStatus.style.color = '#ffa500';
+        showLoader(true);
+
+        // This shows the user's "message" in the history
+        appendAnswerToHistory(messageText);
+
+        const requestOptions = { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ 
+                session_id: window.geminiAPIClient.chatSessionId, 
+                prompt: messageText 
+            }) 
+        };
+
+        try {
+            const response = await fetch('/api/chat_message', requestOptions);
+            const data = await response.json();
+
+            if (response.ok) {
+                const lastMessage = data.history[data.history.length - 1];
+                if (lastMessage.role === 'model') {
+                    const assistantResponse = lastMessage.parts.map(p => p.text || '').join('\n');
+                    appendQuestionToHistory(assistantResponse);
+                }
+                chatStatus.textContent = data.generatedText ? 'Ready for next step.' : 'Standby...';
+                chatStatus.style.color = 'lime';
+            } else {
+                const errorMsg = data.error || 'Failed to get response.';
+                chatStatus.textContent = `Error: ${errorMsg}`;
+                chatStatus.style.color = 'red';
+            }
+        } catch (error) {
+            console.error("Send First Message Fetch Error:", error);
+            chatStatus.textContent = 'Error: Network or server error.';
+            chatStatus.style.color = 'red';
+        } finally {
+            showLoader(false);
+        }
+      }
+
+      async function startNewChat() {
+        // This function is now deprecated in favor of startDiagnosis,
+        // but could be repurposed for a "Start Over" button.
+        // For now, we'll have it reload the page to go back to the selection menu.
+        window.location.reload();
+      }
+
+      async function sendChatMessage() {
+        if (!window.geminiAPIClient.chatSessionId) return;
+
+        const promptInput = document.getElementById('chatPromptInput');
+        const chatStatus = document.getElementById('chatGenerationStatus');
+        const messageText = promptInput.value;
+        const mediaFileInput = document.getElementById('mediaFileInput');
+        const mediaFile = mediaFileInput.files[0];
+
+        if (!messageText.trim() && !mediaFile) return;
+
+        chatStatus.textContent = 'Processing...';
+        chatStatus.style.color = '#ffa500';
+        
+        showLoader(true);
+
+        let userMessageDisplay = messageText;
+        if (mediaFile) userMessageDisplay += ` [Attached: ${mediaFile.name}]`;
+        
+        appendAnswerToHistory(userMessageDisplay);
+
+        promptInput.value = ''; 
+        mediaFileInput.value = null;
+
+        const formData = new FormData();
+        formData.append('session_id', window.geminiAPIClient.chatSessionId);
+        formData.append('prompt', messageText);
+        if (mediaFile) formData.append('media_file', mediaFile, mediaFile.name);
+
+        const requestOptions = mediaFile 
+            ? { method: 'POST', body: formData }
+            : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: window.geminiAPIClient.chatSessionId, prompt: messageText }) };
+
+        try {
+            const response = await fetch('/api/chat_message', requestOptions);
+            const data = await response.json();
+
+            if (response.ok) {
+                const lastMessage = data.history[data.history.length - 1];
+                if (lastMessage.role === 'model') {
+                    const assistantResponse = lastMessage.parts.map(p => p.text || '').join('\n');
+                    appendQuestionToHistory(assistantResponse);
+                }
+                chatStatus.textContent = data.generatedText ? 'Ready for next step.' : 'Standby...';
+                chatStatus.style.color = 'lime';
+            } else {
+                const errorMsg = data.error || 'Failed to get response.';
+                chatStatus.textContent = `Error: ${errorMsg}`;
+                chatStatus.style.color = 'red';
+            }
+        } catch (error) {
+            console.error("Send Chat Message Fetch Error:", error);
+            chatStatus.textContent = 'Error: Network or server error.';
+            chatStatus.style.color = 'red';
+        } finally {
+            showLoader(false);
+        }
+      }
+
+      function appendQuestionToHistory(text) {
+          const chatHistoryElement = document.getElementById('chatHistory');
+          const pairContainer = document.createElement('div');
+          pairContainer.className = 'chat-pair-container';
+          
+          const questionDiv = document.createElement('div');
+          questionDiv.className = 'model-question';
+
+          const mermaidRegex = /```mermaid([\s\S]*?)```/im;
+          const mermaidMatch = text.match(mermaidRegex);
+          let mainText = text;
+
+          if (mermaidMatch) {
+              mainText = text.replace(mermaidRegex, '\n\n_[Flowchart is being rendered separately.]_').trim();
+              const mermaidContent = mermaidMatch[1].trim();
+              renderMermaidDiagram(mermaidContent);
+          }
+          
+          let formattedText = mainText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/_(.*?)_/g, '<em>$1</em>').replace(/\n/g, '<br>');
+          questionDiv.innerHTML = formattedText;
+          
+          pairContainer.appendChild(questionDiv);
+          chatHistoryElement.appendChild(pairContainer);
+
+          // Move loader to be the last child
+          const loader = document.querySelector('.loading-indicator');
+          if (loader) chatHistoryElement.appendChild(loader);
+
+          chatHistoryElement.scrollTop = chatHistoryElement.scrollHeight;
+      }
+
+      function appendAnswerToHistory(answerText) {
+          const chatHistoryElement = document.getElementById('chatHistory');
+          let lastPair = chatHistoryElement.querySelector('.chat-pair-container:last-child');
+          
+          // If there is no last pair, or the last pair already has an answer, create a new pair.
+          if (!lastPair || lastPair.querySelector('.user-answer')) {
+              lastPair = document.createElement('div');
+              lastPair.className = 'chat-pair-container';
+              chatHistoryElement.appendChild(lastPair);
+          }
+
+          const answerDiv = document.createElement('div');
+          answerDiv.className = 'user-answer';
+          answerDiv.textContent = answerText;
+          
+          lastPair.appendChild(answerDiv);
+      }
+
+      function showLoader(show) {
+        const loader = document.querySelector('.loading-indicator');
+        if (loader) {
+            loader.style.display = show ? 'block' : 'none';
+        }
+      }
+      
+      async function renderMermaidDiagram(mermaidContent) {
+        const diagramContainer = document.getElementById('diagramContainer');
+        const mermaidDiv = document.getElementById('mermaidDiagram');
+        const diagramId = 'mermaid-svg-' + Date.now();
+
+        // Trigger the layout shift
+        document.body.classList.add('layout-shifted');
+        
+        // Clear previous diagram and make container visible (handled by CSS)
+        mermaidDiv.innerHTML = '';
+
+        try {
+            const { svg, bindFunctions } = await mermaid.render(diagramId, mermaidContent);
+            mermaidDiv.innerHTML = svg;
+            if (bindFunctions) {
+                bindFunctions(mermaidDiv);
+            }
+        } catch (e) {
+            console.error("Mermaid rendering error:", e);
+            mermaidDiv.innerHTML = `<p style='color:red;'>Error rendering flowchart.</p><pre>${mermaidContent}</pre>`;
+        }
+      }
+
+      document.getElementById('chatPromptInput').addEventListener('keypress', function (e) {
+          if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              sendChatMessage();
+          }
+      });
+    </script>
+{% endblock %}
