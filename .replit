@@ -1,0 +1,3 @@
+language = "python3"
+onBoot = "pip install -r requirements.txt"
+run = "flask run --host=0.0.0.0" 
