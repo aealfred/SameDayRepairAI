@@ -5,10 +5,10 @@
 <div class="control-group" id="loginForm">
     <div class="collapsible-content open">
         <h3>Login</h3>
-        <form method="POST" action="{{ url_for('login') }}">
+        <form id="loginForm">
             <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" class="form-control" required>
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" class="form-control" required>
             </div>
             <div class="form-group">
                 <label for="password">Password</label>
@@ -16,11 +16,47 @@
             </div>
             <button type="submit" class="appliance-button">Login</button>
         </form>
+        <p id="message" style="text-align: center; margin-top: 15px;"></p>
         <div class="border-top pt-3">
             <small class="text-muted">
-                Need An Account? <a class="ml-2" href="{{ url_for('register') }}">Sign Up Now</a>
+                Need An Account? <a class="ml-2" href="{{ url_for('register_page') }}">Sign Up Now</a>
             </small>
         </div>
     </div>
 </div>
+
+<script>
+    document.getElementById('loginForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const messageEl = document.getElementById('message');
+
+        messageEl.textContent = 'Logging in...';
+        messageEl.style.color = '#ffa500';
+
+        try {
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Store the token and redirect
+                localStorage.setItem('supabase.auth.token', data.access_token);
+                window.location.href = "{{ url_for('index') }}";
+            } else {
+                messageEl.textContent = `Error: ${data.details || data.error}`;
+                messageEl.style.color = 'red';
+            }
+        } catch (error) {
+            console.error('Login Error:', error);
+            messageEl.textContent = 'A network error occurred. Please try again.';
+            messageEl.style.color = 'red';
+        }
+    });
+</script>
 {% endblock %} 

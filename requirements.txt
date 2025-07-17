@@ -6,8 +6,9 @@ python-dotenv
 google-generativeai>=0.4.0
 
 # --- Database & Authentication ---
-Flask-SQLAlchemy==3.1.1
-Flask-Login==0.6.3
-Flask-Migrate==4.0.7
-bcrypt==4.1.2
+# Flask-SQLAlchemy==3.1.1 # Replaced by Supabase client
+# Flask-Login==0.6.3 # Replaced by Supabase client
+# Flask-Migrate==4.0.7 # Replaced by Supabase client
+# bcrypt==4.1.2 # Replaced by Supabase client
+supabase-py
 psycopg2-binary==2.9.9 # For PostgreSQL 

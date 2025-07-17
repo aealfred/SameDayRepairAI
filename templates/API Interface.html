@@ -2,7 +2,7 @@
 {% block title %}Diagnostic Chat - Same-Day-Repair AI{% endblock %}
 
 {% block content %}
-    <div class="main-container" id="mainAppContainer">
+    <div class="main-container" id="mainAppContainer" style="display: none;"> {# Hidden by default #}
         <!-- Container for Past Sessions and Appliance Selection -->
         <div class="selection-container">
             <!-- New Appliance Selection Menu -->
@@ -62,39 +62,93 @@
         </div>
     </div>
 
-    {# Add a logout button to the header #}
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const header = document.querySelector('.app-header');
-            if (header) {
-                const logoutButton = document.createElement('a');
-                logoutButton.href = "{{ url_for('logout') }}";
-                logoutButton.innerText = 'Logout';
-                logoutButton.className = 'logout-button';
-                header.appendChild(logoutButton);
-            }
-            // Load past sessions when the page is ready
-            loadPastSessions();
-        });
-    </script>
+    {# The logout button will be created dynamically by the script #}
     
     <script>
-      mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+      // --- Supabase Auth & API Helper ---
+      const anontoken = "{{ supabase_anon_key }}"; // This will be injected by Flask if we set it up
+      const SUPABASE_URL = "{{ supabase_url }}"; // Same as above
+      const SUPABASE_HEADERS = {
+          'apikey': anontoken,
+          'Authorization': `Bearer ${localStorage.getItem('supabase.auth.token')}`
+      };
 
+      // New function to handle authenticated API calls
+      async function fetchAuthenticated(url, options = {}) {
+          const token = localStorage.getItem('supabase.auth.token');
+          if (!token) {
+              window.location.href = "{{ url_for('login_page') }}";
+              return;
+          }
+
+          const headers = {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+              ...options.headers,
+          };
+          
+          // For FormData, we let the browser set the Content-Type
+          if (options.body instanceof FormData) {
+            delete headers['Content-Type'];
+          }
+
+          const response = await fetch(url, { ...options, headers });
+
+          if (response.status === 401) { // Unauthorized
+              localStorage.removeItem('supabase.auth.token');
+              window.location.href = "{{ url_for('login_page') }}";
+              return;
+          }
+          return response;
+      }
+
+      async function logout() {
+          const response = await fetchAuthenticated('/api/logout', { method: 'POST' });
+          localStorage.removeItem('supabase.auth.token');
+          window.location.href = "{{ url_for('login_page') }}";
+      }
+
+      // --- Page Initialization ---
+      document.addEventListener('DOMContentLoaded', function() {
+          const token = localStorage.getItem('supabase.auth.token');
+          if (!token) {
+              window.location.href = "{{ url_for('login_page') }}";
+              return;
+          }
+          
+          // If token exists, show the main app and load data
+          document.getElementById('mainAppContainer').style.display = 'block';
+
+          const header = document.querySelector('.app-header');
+          if (header) {
+              const logoutButton = document.createElement('a');
+              logoutButton.href = "#";
+              logoutButton.innerText = 'Logout';
+              logoutButton.className = 'logout-button';
+              logoutButton.onclick = (e) => {
+                  e.preventDefault();
+                  logout();
+              };
+              header.appendChild(logoutButton);
+          }
+          loadPastSessions();
+      });
+
+      // --- Existing Mermaid and API Client Logic ---
+      mermaid.initialize({ startOnLoad: false, theme: 'dark' });
       window.geminiAPIClient = {
           isConnecting: false,
           chatSessionId: null
       };
 
+      // --- Refactored API Calls ---
       async function loadPastSessions() {
         const pastJobsList = document.getElementById('pastJobsList');
         pastJobsList.innerHTML = '<p>Loading past jobs...</p>';
 
         try {
-            const response = await fetch('/api/past_sessions');
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            const response = await fetchAuthenticated('/api/past_sessions');
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const sessions = await response.json();
 
             if (sessions.length === 0) {
@@ -106,24 +160,32 @@
             sessions.forEach(session => {
                 const sessionDiv = document.createElement('div');
                 sessionDiv.className = 'past-job-item';
-                sessionDiv.id = `session-${session.session_id}`; // Add an ID for easy removal
+                sessionDiv.id = `session-${session.session_id}`;
 
-                // Main content part, clickable to load history
                 const contentDiv = document.createElement('div');
                 contentDiv.className = 'job-item-content';
+                
+                // Use a safer preview logic
+                let preview = "No preview available.";
+                if (session.history && session.history.length > 0) {
+                    const firstModelMessage = session.history.find(m => m.role === 'model');
+                    if (firstModelMessage && firstModelMessage.parts.length > 0) {
+                        preview = firstModelMessage.parts[0].text;
+                    }
+                }
+
                 contentDiv.innerHTML = `
-                    <div class="job-item-appliance">${session.appliance_type}</div>
-                    <div class="job-item-date">${session.start_time}</div>
-                    <div class="job-item-preview">${session.history_preview}</div>
+                    <div class="job-item-appliance">${session.appliance_type || 'General'}</div>
+                    <div class="job-item-date">${new Date(session.start_time).toLocaleString()}</div>
+                    <div class="job-item-preview">${preview}</div>
                 `;
                 contentDiv.onclick = () => loadSessionHistory(session.session_id);
                 
-                // Delete button part
                 const deleteButton = document.createElement('button');
                 deleteButton.className = 'delete-session-btn';
-                deleteButton.innerText = '×'; // A simple 'X' for delete
+                deleteButton.innerText = '×';
                 deleteButton.onclick = (e) => {
-                    e.stopPropagation(); // Prevent the click from loading the session
+                    e.stopPropagation();
                     deleteSession(session.session_id);
                 };
 
@@ -139,36 +201,27 @@
       }
 
       async function deleteSession(sessionId) {
-        if (!confirm('Are you sure you want to permanently delete this job history?')) {
-            return;
-        }
+        if (!confirm('Are you sure you want to permanently delete this job history?')) return;
         
         try {
-            const response = await fetch(`/api/delete_session/${sessionId}`, {
-                method: 'DELETE',
-            });
-
+            const response = await fetchAuthenticated(`/api/delete_session/${sessionId}`, { method: 'DELETE' });
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.error || 'Failed to delete session.');
             }
-
-            // Remove the element from the UI
             const elementToRemove = document.getElementById(`session-${sessionId}`);
             if (elementToRemove) {
                 elementToRemove.style.transition = 'opacity 0.5s ease';
                 elementToRemove.style.opacity = '0';
                 setTimeout(() => elementToRemove.remove(), 500);
             }
-
         } catch (error) {
             console.error('Error deleting session:', error);
-            alert(`Error: ${error.message}`); // Show error to the user
+            alert(`Error: ${error.message}`);
         }
       }
 
       async function loadSessionHistory(sessionId) {
-        // 1. Update UI
         document.querySelector('.selection-container').style.display = 'none';
         const chatGroup = document.getElementById('chatConversationGroup');
         chatGroup.style.display = 'flex';
@@ -178,77 +231,52 @@
         const sendButton = document.getElementById('sendChatMessageButton');
 
         try {
-            // 2. Fetch history from the new endpoint
-            const response = await fetch(`/api/chat_history/${sessionId}`);
+            const response = await fetchAuthenticated(`/api/chat_history/${sessionId}`);
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.error || `HTTP error! status: ${response.status}`);
             }
             const sessionData = await response.json();
 
-            // 3. Set the session ID and update status
             window.geminiAPIClient.chatSessionId = sessionData.session_id;
             chatStatusElement.textContent = `Session Active: ${sessionData.session_id.substring(0, 8)}...`;
             chatStatusElement.style.color = 'lime';
 
-            // 4. Populate the chat history
-            chatHistoryElement.innerHTML = '<div class="loading-indicator" style="display: none;"></div>'; // Hide loader
+            chatHistoryElement.innerHTML = '';
             
-            // Render history sequentially
             sessionData.history.forEach(message => {
-                const text = message.parts.map(p => (p.text || '')).join('\n');
-                if (message.role === 'user') {
-                    // Find the last chat pair to append the answer to
-                    const lastPair = chatHistoryElement.querySelector('.chat-pair-container:last-child');
-                    if (lastPair && !lastPair.querySelector('.user-answer')) {
-                         const answerDiv = document.createElement('div');
-                         answerDiv.className = 'user-answer';
-                         answerDiv.textContent = text;
-                         lastPair.appendChild(answerDiv);
-                    } else {
-                        // This case is for a user message that doesn't follow a model question,
-                        // which can happen at the start of a loaded history.
-                        appendAnswerToHistory(text); 
-                    }
-                } else if (message.role === 'model') {
-                    // Each model message starts a new "pair"
-                    appendQuestionToHistory(text);
-                }
+                const text = message.parts.map(p => (p.text || '')).join('\\n');
+                if (message.role === 'user') appendAnswerToHistory(text);
+                else if (message.role === 'model') appendQuestionToHistory(text);
             });
             
-            // Re-enable input
             sendButton.disabled = false;
             document.getElementById('chatGenerationStatus').textContent = 'Session loaded. Ready for input.';
-            document.getElementById('chatGenerationStatus').style.color = 'lime';
-
         } catch (error) {
             console.error('Error loading session history:', error);
             chatHistoryElement.innerHTML = '';
             chatStatusElement.textContent = `Error: ${error.message}`;
             chatStatusElement.style.color = 'red';
             sendButton.disabled = true;
+        } finally {
+            showLoader(false);
         }
       }
 
       async function startDiagnosis(applianceType) {
-        // 1. Update UI to hide selection and show chat
         document.querySelector('.selection-container').style.display = 'none';
         document.getElementById('chatConversationGroup').style.display = 'flex';
-        
         const chatStatusElement = document.getElementById('chatSessionStatus');
         const chatHistoryElement = document.getElementById('chatHistory');
         const sendButton = document.getElementById('sendChatMessageButton');
 
-        // From original startNewChat logic
         chatStatusElement.textContent = 'Starting new session...';
         chatStatusElement.style.color = '#ffa500';
-        chatHistoryElement.innerHTML = '<div class="loading-indicator" style="display: none;"></div>';
+        chatHistoryElement.innerHTML = '';
 
         try {
-            // 2. Start a new session via the API
-            const response = await fetch('/api/new_chat', {
+            const response = await fetchAuthenticated('/api/new_chat', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ appliance_type: applianceType })
             });
             const data = await response.json();
@@ -259,10 +287,8 @@
                 chatStatusElement.style.color = 'lime';
                 sendButton.disabled = false;
                 
-                // 3. Automatically send the first message
                 const initialPrompt = `I need help with my ${applianceType}.`;
                 await sendFirstMessage(initialPrompt);
-
             } else {
                 const errorMsg = data.error || 'Failed to start chat session.';
                 chatStatusElement.textContent = `Error: ${errorMsg}`;
@@ -270,63 +296,44 @@
                 sendButton.disabled = true;
             }
         } catch (error) {
-            console.error("Start Diagnosis Fetch Error:", error);
+            console.error("Start Diagnosis Error:", error);
             chatStatusElement.textContent = 'Error: Network or server error.';
-            chatStatusElement.style.color = 'red';
-            sendButton.disabled = true;
         }
       }
 
       async function sendFirstMessage(messageText) {
         if (!window.geminiAPIClient.chatSessionId) return;
-
         const chatStatus = document.getElementById('chatGenerationStatus');
         chatStatus.textContent = 'Processing...';
-        chatStatus.style.color = '#ffa500';
         showLoader(true);
-
-        // This shows the user's "message" in the history
         appendAnswerToHistory(messageText);
 
-        const requestOptions = { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify({ 
-                session_id: window.geminiAPIClient.chatSessionId, 
-                prompt: messageText 
-            }) 
-        };
-
         try {
-            const response = await fetch('/api/chat_message', requestOptions);
+            const response = await fetchAuthenticated('/api/chat_message', {
+                method: 'POST',
+                body: JSON.stringify({
+                    session_id: window.geminiAPIClient.chatSessionId,
+                    prompt: messageText
+                })
+            });
             const data = await response.json();
 
             if (response.ok) {
-                const lastMessage = data.history[data.history.length - 1];
-                if (lastMessage.role === 'model') {
-                    const assistantResponse = lastMessage.parts.map(p => p.text || '').join('\n');
-                    appendQuestionToHistory(assistantResponse);
-                }
-                chatStatus.textContent = data.generatedText ? 'Ready for next step.' : 'Standby...';
-                chatStatus.style.color = 'lime';
+                const assistantResponse = data.generatedText;
+                appendQuestionToHistory(assistantResponse);
+                chatStatus.textContent = 'Ready for next step.';
             } else {
-                const errorMsg = data.error || 'Failed to get response.';
-                chatStatus.textContent = `Error: ${errorMsg}`;
-                chatStatus.style.color = 'red';
+                throw new Error(data.error || 'Failed to get response.');
             }
         } catch (error) {
-            console.error("Send First Message Fetch Error:", error);
-            chatStatus.textContent = 'Error: Network or server error.';
+            chatStatus.textContent = `Error: ${error.message}`;
             chatStatus.style.color = 'red';
         } finally {
             showLoader(false);
         }
       }
 
-      async function startNewChat() {
-        // This function is now deprecated in favor of startDiagnosis,
-        // but could be repurposed for a "Start Over" button.
-        // For now, we'll have it reload the page to go back to the selection menu.
+      function startNewChat() {
         window.location.reload();
       }
 
@@ -334,60 +341,55 @@
         if (!window.geminiAPIClient.chatSessionId) return;
 
         const promptInput = document.getElementById('chatPromptInput');
-        const chatStatus = document.getElementById('chatGenerationStatus');
-        const messageText = promptInput.value;
         const mediaFileInput = document.getElementById('mediaFileInput');
+        const messageText = promptInput.value;
         const mediaFile = mediaFileInput.files[0];
+        const chatStatus = document.getElementById('chatGenerationStatus');
 
         if (!messageText.trim() && !mediaFile) return;
 
         chatStatus.textContent = 'Processing...';
-        chatStatus.style.color = '#ffa500';
-        
         showLoader(true);
 
         let userMessageDisplay = messageText;
         if (mediaFile) userMessageDisplay += ` [Attached: ${mediaFile.name}]`;
-        
         appendAnswerToHistory(userMessageDisplay);
-
         promptInput.value = ''; 
         mediaFileInput.value = null;
 
-        const formData = new FormData();
-        formData.append('session_id', window.geminiAPIClient.chatSessionId);
-        formData.append('prompt', messageText);
-        if (mediaFile) formData.append('media_file', mediaFile, mediaFile.name);
-
-        const requestOptions = mediaFile 
-            ? { method: 'POST', body: formData }
-            : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: window.geminiAPIClient.chatSessionId, prompt: messageText }) };
-
+        let response;
         try {
-            const response = await fetch('/api/chat_message', requestOptions);
-            const data = await response.json();
-
-            if (response.ok) {
-                const lastMessage = data.history[data.history.length - 1];
-                if (lastMessage.role === 'model') {
-                    const assistantResponse = lastMessage.parts.map(p => p.text || '').join('\n');
-                    appendQuestionToHistory(assistantResponse);
-                }
-                chatStatus.textContent = data.generatedText ? 'Ready for next step.' : 'Standby...';
-                chatStatus.style.color = 'lime';
+            if (mediaFile) {
+                const formData = new FormData();
+                formData.append('session_id', window.geminiAPIClient.chatSessionId);
+                formData.append('prompt', messageText);
+                formData.append('media_file', mediaFile, mediaFile.name);
+                response = await fetchAuthenticated('/api/chat_message', { method: 'POST', body: formData });
             } else {
-                const errorMsg = data.error || 'Failed to get response.';
-                chatStatus.textContent = `Error: ${errorMsg}`;
-                chatStatus.style.color = 'red';
+                response = await fetchAuthenticated('/api/chat_message', {
+                    method: 'POST',
+                    body: JSON.stringify({ session_id: window.geminiAPIClient.chatSessionId, prompt: messageText })
+                });
+            }
+
+            const data = await response.json();
+            if (response.ok) {
+                const assistantResponse = data.generatedText;
+                appendQuestionToHistory(assistantResponse);
+                chatStatus.textContent = 'Ready for next step.';
+            } else {
+                throw new Error(data.error || 'Failed to get response.');
             }
         } catch (error) {
-            console.error("Send Chat Message Fetch Error:", error);
-            chatStatus.textContent = 'Error: Network or server error.';
+            console.error("Send Chat Message Error:", error);
+            chatStatus.textContent = `Error: ${error.message}`;
             chatStatus.style.color = 'red';
         } finally {
             showLoader(false);
         }
       }
+      
+      // --- Helper functions (appendQuestion, appendAnswer, showLoader, renderMermaid) remain the same ---
 
       function appendQuestionToHistory(text) {
           const chatHistoryElement = document.getElementById('chatHistory');
