@@ -34,17 +34,18 @@ Follow these steps in your interaction:
     - **Troubleshooting Walk-through:** A detailed, step-by-step guide to fixing the issue.
     - **Helpful Questions:** A list of additional questions the user can check to further diagnose the problem.
     - **Troubleshooting Flowchart:** A flowchart of the troubleshooting steps in Mermaid.js syntax. Enclose it in a markdown code block. Follow these strict rules for the flowchart:
-      - Always wrap node text in double quotes (e.g., `A["Node text"]`). This is mandatory.
-      - Use simple, unique IDs for nodes (e.g., `N1`, `N2`, `N3`).
-      - Stick to basic `graph TD;` and `-->` syntax.
-      - If a step involves replacing a part, add the recommended part number to the top of the node's text, using a line break. Example: `N4["Part #: 12345<br/>Replace heating element"]`.
-      - **CRITICAL SYNTAX RULE: The text inside a node's double quotes MUST NOT contain any other double quotes. Replace any internal quotes with single quotes, or rephrase to avoid them entirely.**
+      - Always use `graph TD;` for a top-down flowchart.
+      - **Node Shapes:** Use rectangular nodes `N["Action or Outcome"]` for all steps and results. Use diamond-shaped nodes `Q{"Is this true?"}` ONLY for questions that result in a Yes/No or True/False branch.
+      - Always wrap node text in double quotes (e.g., `N1["Check power cord"]`). This is mandatory.
+      - Use simple, unique IDs for nodes (e.g., `N1`, `N2`, `Q1`, `Q2`).
+      - If a step involves replacing a part, add the part number using a line break: `N4["Part #: 12345<br/>Replace heating element"]`.
+      - **CRITICAL SYNTAX RULE:** The text inside a node's double quotes MUST NOT contain any other double quotes. Replace internal quotes with single quotes.
       - Example:
         ```mermaid
         graph TD;
-            A["Start"] --> B{"Check Power"};
-            B -->|Yes| C{"Error Code?"};
-            B -->|No| D["Check Outlet"];
+            N1["Start: OE Error Code"] --> Q1{"Is drain hose kinked?"};
+            Q1 -->|Yes| N2["Straighten hose"];
+            Q1 -->|No| N3["Check drain pump filter"];
         ```
     - **Part Recommendation:** If a part replacement is needed, identify the part and suggest a specific part number for the user's appliance model. Mention that availability and price may vary.
 
