@@ -3,6 +3,11 @@ onBoot = "pip install -r requirements.txt"
 run = "python app.py"
 modules = ["python-3.11"]
 
+[deployment]
+publicDir = "/"
+deploymentTarget = "cloudrun"
+run = ["sh", "-c", "python app.py"]
+
 [nix]
 channel = "stable-23.05" 
 
@@ -10,3 +15,15 @@ channel = "stable-23.05"
 localPort = 5000
 externalPort = 80
 exposeLocalhost = true
+
+[workflows]
+runButton = "Run Flask App"
+
+[[workflows.workflow]]
+name = "Run Flask App"
+author = 44377654
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python app.py"
