@@ -321,4 +321,4 @@ if __name__ == '__main__':
         shutil.move(source_html_path, dest_html_path)
     
     logging.info("Starting Flask app...")
-    app.run(debug=True, port=5000) 
+    app.run(debug=True, host='0.0.0.0', port=5000) 
