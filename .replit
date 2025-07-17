@@ -1,3 +1,6 @@
 language = "python3"
 onBoot = "pip install -r requirements.txt"
-run = "python app.py" 
+run = "python app.py"
+
+[nix]
+channel = "stable-23.05" 
